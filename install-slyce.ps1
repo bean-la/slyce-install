@@ -2,10 +2,10 @@
 # Install the `slyce` CLI from the release CDN.
 #
 # Stable one-liner (tracks main; pin a commit SHA in production if you need immutability):
-#   irm https://raw.githubusercontent.com/bean-la/slyce-install/main/install-slyce.ps1 | iex
+# irm https://raw.githubusercontent.com/bean-la/slyce-install/main/install-slyce.ps1 | iex
 #
 # Or with a custom base URL:
-#   $env:SLYCE_RELEASE_BASE_URL = "https://example.com"; irm ... | iex
+# $env:SLYCE_RELEASE_BASE_URL = "https://example.com"; irm ... | iex
 #
 # Installs to $env:INSTALL_DIR (default: $HOME/.local/bin). Ensure that directory is on PATH.
 
@@ -40,6 +40,67 @@ function Read-ExpectedChecksum {
     throw "install-slyce: invalid checksum format."
   }
   return $candidate
+}
+
+function Ensure-InstallDirOnPath {
+  param([Parameter(Mandatory = $true)][string]$InstallDir)
+
+  if (-not $IsWindows) {
+    return
+  }
+
+  $normalized = $InstallDir.TrimEnd("\")
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  $entries = @()
+  if (-not [string]::IsNullOrWhiteSpace($userPath)) {
+    $entries = $userPath -split ";"
+  }
+
+  $present = $false
+  foreach ($entry in $entries) {
+    if ([string]::IsNullOrWhiteSpace($entry)) {
+      continue
+    }
+    if ($entry.TrimEnd("\") -ieq $normalized) {
+      $present = $true
+      break
+    }
+  }
+
+  if (-not $present) {
+    $newUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) {
+      $InstallDir
+    }
+    else {
+      $userPath.TrimEnd(";") + ";" + $InstallDir
+    }
+
+    [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
+    Write-Host "install-slyce: added $InstallDir to user PATH"
+  }
+  else {
+    Write-Host "install-slyce: $InstallDir already present in user PATH"
+  }
+
+  $sessionEntries = $env:Path -split ";"
+  $sessionPresent = $false
+  foreach ($entry in $sessionEntries) {
+    if ([string]::IsNullOrWhiteSpace($entry)) {
+      continue
+    }
+    if ($entry.TrimEnd("\") -ieq $normalized) {
+      $sessionPresent = $true
+      break
+    }
+  }
+  if (-not $sessionPresent) {
+    $env:Path = if ([string]::IsNullOrWhiteSpace($env:Path)) {
+      $InstallDir
+    }
+    else {
+      $env:Path.TrimEnd(";") + ";" + $InstallDir
+    }
+  }
 }
 
 $base = if ($env:SLYCE_RELEASE_BASE_URL) {
@@ -115,6 +176,9 @@ try {
 
   if (-not $IsWindows) {
     & chmod +x $targetPath
+  }
+  else {
+    Ensure-InstallDirOnPath -InstallDir $installDir
   }
 
   Write-Host "install-slyce: installed to $targetPath"
