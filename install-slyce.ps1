@@ -63,11 +63,12 @@ function Remove-LegacyUserScopedSlyceBinaries {
   if (-not $IsWindows) {
     return
   }
+  $homeDir = [string]$HOME
   $legacyCandidates = @(
-    (Join-Path $HOME ".local\bin\slyce.exe"),
-    (Join-Path $HOME ".local\bin\slyce.new.exe"),
-    (Join-Path $HOME ".slyce\bin\slyce.exe"),
-    (Join-Path $HOME ".slyce\bin\slyce.new.exe")
+    "$homeDir\.local\bin\slyce.exe",
+    "$homeDir\.local\bin\slyce.new.exe",
+    "$homeDir\.slyce\bin\slyce.exe",
+    "$homeDir\.slyce\bin\slyce.new.exe"
   )
   foreach ($candidate in $legacyCandidates) {
     if (Test-Path -Path $candidate) {
@@ -89,10 +90,9 @@ function Sync-WindowsPathToRuntimeCli {
     return
   }
 
-  $legacyDirs = @(
-    (Join-Path $HOME ".local\bin").TrimEnd("\"),
-    (Join-Path $HOME ".slyce\bin").TrimEnd("\")
-  )
+  $homeDir = [string]$HOME
+  $legacyDirs = @("$homeDir\.local\bin", "$homeDir\.slyce\bin") |
+    ForEach-Object { $_.TrimEnd("\") }
   $normalizedInstall = $InstallDir.TrimEnd("\")
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
   $entries = @()
