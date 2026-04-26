@@ -26,11 +26,6 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 BASE="${SLYCE_RELEASE_BASE_URL:-${WORKER_UPDATE_BASE_URL:-https://slyce.moiste.la}}"
-
-platform_arch=$(node -e "console.log(process.platform+' '+process.arch)")
-platform=${platform_arch%% *}
-arch=${platform_arch#* }
-
 default_install_dir=$(node -e '
 const os = require("node:os");
 const path = require("node:path");
@@ -45,6 +40,46 @@ if (process.platform === "win32") {
 ')
 INSTALL_DIR="${INSTALL_DIR:-$default_install_dir}"
 
+platform_arch=$(node -e "console.log(process.platform+' '+process.arch)")
+platform=${platform_arch%% *}
+arch=${platform_arch#* }
+
+remove_legacy_user_scoped_slyce_binaries() {
+  home_dir="${HOME:-}"
+  if [ -z "$home_dir" ]; then
+    return
+  fi
+
+  target_path="${INSTALL_DIR}/slyce${ext}"
+  legacy_candidates="
+$home_dir/.local/bin/slyce
+$home_dir/.local/bin/slyce.new
+$home_dir/.slyce/bin/slyce
+$home_dir/.slyce/bin/slyce.new
+$home_dir/.local/bin/slyce.exe
+$home_dir/.local/bin/slyce.new.exe
+$home_dir/.slyce/bin/slyce.exe
+$home_dir/.slyce/bin/slyce.new.exe
+"
+
+  old_ifs=$IFS
+  IFS='
+'
+  for candidate in $legacy_candidates; do
+    [ -n "$candidate" ] || continue
+    if [ "$candidate" = "$target_path" ]; then
+      continue
+    fi
+    if [ -e "$candidate" ] || [ -L "$candidate" ]; then
+      if rm -f "$candidate"; then
+        echo "install-slyce: removed legacy user binary $candidate"
+      else
+        echo "install-slyce: warning - could not remove legacy user binary $candidate" >&2
+      fi
+    fi
+  done
+  IFS=$old_ifs
+}
 LATEST_URL="${BASE}/slyce/${platform}/${arch}/latest.json"
 echo "install-slyce: reading ${LATEST_URL}"
 
@@ -86,5 +121,6 @@ fi
 mkdir -p "$INSTALL_DIR"
 mv -f "$tmp_bin" "$INSTALL_DIR/slyce${ext}"
 chmod +x "$INSTALL_DIR/slyce${ext}"
+remove_legacy_user_scoped_slyce_binaries
 
 echo "install-slyce: installed to ${INSTALL_DIR}/slyce${ext}"
