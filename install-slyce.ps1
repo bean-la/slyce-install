@@ -59,6 +59,71 @@ function Get-DefaultInstallDir {
   return "/var/lib/slyce/bin"
 }
 
+function Remove-LegacyUserScopedSlyceBinaries {
+  if (-not $IsWindows) {
+    return
+  }
+  $legacyCandidates = @(
+    Join-Path $HOME ".local\bin\slyce.exe",
+    Join-Path $HOME ".local\bin\slyce.new.exe",
+    Join-Path $HOME ".slyce\bin\slyce.exe",
+    Join-Path $HOME ".slyce\bin\slyce.new.exe"
+  )
+  foreach ($candidate in $legacyCandidates) {
+    if (Test-Path -Path $candidate) {
+      try {
+        Remove-Item -Path $candidate -Force
+        Write-Host "install-slyce: removed legacy user binary $candidate"
+      }
+      catch {
+        Write-Host "install-slyce: warning - could not remove legacy user binary $candidate"
+      }
+    }
+  }
+}
+
+function Sync-WindowsPathToRuntimeCli {
+  param([Parameter(Mandatory = $true)][string]$InstallDir)
+
+  if (-not $IsWindows) {
+    return
+  }
+
+  $legacyDirs = @(
+    (Join-Path $HOME ".local\bin").TrimEnd("\"),
+    (Join-Path $HOME ".slyce\bin").TrimEnd("\")
+  )
+  $normalizedInstall = $InstallDir.TrimEnd("\")
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  $entries = @()
+  if (-not [string]::IsNullOrWhiteSpace($userPath)) {
+    $entries = $userPath -split ";"
+  }
+
+  $filtered = New-Object System.Collections.Generic.List[string]
+  $hasInstall = $false
+  foreach ($entry in $entries) {
+    if ([string]::IsNullOrWhiteSpace($entry)) { continue }
+    $normalizedEntry = $entry.TrimEnd("\")
+    if ($legacyDirs -contains $normalizedEntry) {
+      continue
+    }
+    if ($normalizedEntry -ieq $normalizedInstall) {
+      $hasInstall = $true
+    }
+    $filtered.Add($entry)
+  }
+
+  if (-not $hasInstall) {
+    $filtered.Insert(0, $InstallDir)
+  }
+
+  $newUserPath = ($filtered -join ";")
+  [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
+  $env:Path = $newUserPath
+  Write-Host "install-slyce: normalized user PATH for runtime CLI directory"
+}
+
 $base = if ($env:SLYCE_RELEASE_BASE_URL) {
   $env:SLYCE_RELEASE_BASE_URL
 }
@@ -124,6 +189,10 @@ try {
 
   if (-not $IsWindows) {
     & chmod +x $targetPath
+  }
+  else {
+    Remove-LegacyUserScopedSlyceBinaries
+    Sync-WindowsPathToRuntimeCli -InstallDir $installDir
   }
   Write-Host "install-slyce: installed to $targetPath"
 }
