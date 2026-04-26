@@ -7,7 +7,10 @@
 # Or with a custom base URL:
 # $env:SLYCE_RELEASE_BASE_URL = "https://example.com"; irm ... | iex
 #
-# Installs to $env:INSTALL_DIR (default: $HOME/.local/bin). Ensure that directory is on PATH.
+# Installs to $env:INSTALL_DIR (default: runtime root bin directory).
+# Windows: C:\ProgramData\Slyce\bin
+# macOS: ~/Library/Application Support/Slyce/bin
+# Linux: /var/lib/slyce/bin
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -42,65 +45,18 @@ function Read-ExpectedChecksum {
   return $candidate
 }
 
-function Ensure-InstallDirOnPath {
-  param([Parameter(Mandatory = $true)][string]$InstallDir)
-
-  if (-not $IsWindows) {
-    return
+function Get-DefaultInstallDir {
+  if ($env:INSTALL_DIR) {
+    return $env:INSTALL_DIR
   }
-
-  $normalized = $InstallDir.TrimEnd("\")
-  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-  $entries = @()
-  if (-not [string]::IsNullOrWhiteSpace($userPath)) {
-    $entries = $userPath -split ";"
+  if ($IsWindows) {
+    $programData = if ($env:ProgramData) { $env:ProgramData } else { "C:\ProgramData" }
+    return Join-Path $programData "Slyce\bin"
   }
-
-  $present = $false
-  foreach ($entry in $entries) {
-    if ([string]::IsNullOrWhiteSpace($entry)) {
-      continue
-    }
-    if ($entry.TrimEnd("\") -ieq $normalized) {
-      $present = $true
-      break
-    }
+  if ($IsMacOS) {
+    return Join-Path $HOME "Library/Application Support/Slyce/bin"
   }
-
-  if (-not $present) {
-    $newUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) {
-      $InstallDir
-    }
-    else {
-      $userPath.TrimEnd(";") + ";" + $InstallDir
-    }
-
-    [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
-    Write-Host "install-slyce: added $InstallDir to user PATH"
-  }
-  else {
-    Write-Host "install-slyce: $InstallDir already present in user PATH"
-  }
-
-  $sessionEntries = $env:Path -split ";"
-  $sessionPresent = $false
-  foreach ($entry in $sessionEntries) {
-    if ([string]::IsNullOrWhiteSpace($entry)) {
-      continue
-    }
-    if ($entry.TrimEnd("\") -ieq $normalized) {
-      $sessionPresent = $true
-      break
-    }
-  }
-  if (-not $sessionPresent) {
-    $env:Path = if ([string]::IsNullOrWhiteSpace($env:Path)) {
-      $InstallDir
-    }
-    else {
-      $env:Path.TrimEnd(";") + ";" + $InstallDir
-    }
-  }
+  return "/var/lib/slyce/bin"
 }
 
 $base = if ($env:SLYCE_RELEASE_BASE_URL) {
@@ -113,15 +69,7 @@ else {
   "https://slyce.moiste.la"
 }
 
-$installDir = if ($env:INSTALL_DIR) {
-  $env:INSTALL_DIR
-}
-elseif ($HOME) {
-  Join-Path $HOME ".local/bin"
-}
-else {
-  Join-Path $env:USERPROFILE ".local/bin"
-}
+$installDir = Get-DefaultInstallDir
 
 $platform = Get-SlycePlatform
 $arch = Get-SlyceArch
@@ -177,12 +125,7 @@ try {
   if (-not $IsWindows) {
     & chmod +x $targetPath
   }
-  else {
-    Ensure-InstallDirOnPath -InstallDir $installDir
-  }
-
   Write-Host "install-slyce: installed to $targetPath"
-  Write-Host "install-slyce: ensure $installDir is on your PATH"
 }
 finally {
   if (Test-Path -Path $tmpDir) {

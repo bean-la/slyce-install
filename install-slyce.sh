@@ -8,7 +8,10 @@
 # Or with a custom base URL:
 #   SLYCE_RELEASE_BASE_URL=https://example.com curl -fsSL ... | sh
 #
-# Installs to $INSTALL_DIR (default: $HOME/.local/bin). Ensure that directory is on PATH.
+# Installs to $INSTALL_DIR (default: runtime root bin directory):
+#   macOS: ~/Library/Application Support/Slyce/bin
+#   Linux: /var/lib/slyce/bin
+#   Windows (when run via sh): C:\ProgramData\Slyce\bin
 
 set -eu
 
@@ -23,11 +26,24 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 BASE="${SLYCE_RELEASE_BASE_URL:-${WORKER_UPDATE_BASE_URL:-https://slyce.moiste.la}}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
 platform_arch=$(node -e "console.log(process.platform+' '+process.arch)")
 platform=${platform_arch%% *}
 arch=${platform_arch#* }
+
+default_install_dir=$(node -e '
+const os = require("node:os");
+const path = require("node:path");
+if (process.platform === "win32") {
+  const programData = process.env.ProgramData || "C:\\ProgramData";
+  process.stdout.write(path.join(programData, "Slyce", "bin"));
+} else if (process.platform === "darwin") {
+  process.stdout.write(path.join(os.homedir(), "Library", "Application Support", "Slyce", "bin"));
+} else {
+  process.stdout.write("/var/lib/slyce/bin");
+}
+')
+INSTALL_DIR="${INSTALL_DIR:-$default_install_dir}"
 
 LATEST_URL="${BASE}/slyce/${platform}/${arch}/latest.json"
 echo "install-slyce: reading ${LATEST_URL}"
@@ -72,4 +88,3 @@ mv -f "$tmp_bin" "$INSTALL_DIR/slyce${ext}"
 chmod +x "$INSTALL_DIR/slyce${ext}"
 
 echo "install-slyce: installed to ${INSTALL_DIR}/slyce${ext}"
-echo "install-slyce: ensure ${INSTALL_DIR} is on your PATH"
