@@ -64,10 +64,10 @@ function Remove-LegacyUserScopedSlyceBinaries {
     return
   }
   $legacyCandidates = @(
-    Join-Path $HOME ".local\bin\slyce.exe",
-    Join-Path $HOME ".local\bin\slyce.new.exe",
-    Join-Path $HOME ".slyce\bin\slyce.exe",
-    Join-Path $HOME ".slyce\bin\slyce.new.exe"
+    (Join-Path $HOME ".local\bin\slyce.exe"),
+    (Join-Path $HOME ".local\bin\slyce.new.exe"),
+    (Join-Path $HOME ".slyce\bin\slyce.exe"),
+    (Join-Path $HOME ".slyce\bin\slyce.new.exe")
   )
   foreach ($candidate in $legacyCandidates) {
     if (Test-Path -Path $candidate) {
