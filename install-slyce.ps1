@@ -185,6 +185,14 @@ try {
 
   New-Item -ItemType Directory -Path $installDir -Force | Out-Null
   $targetPath = Join-Path $installDir "slyce$ext"
+  if (Test-Path -Path $targetPath) {
+    try {
+      Remove-Item -Path $targetPath -Force
+    }
+    catch {
+      throw "install-slyce: could not replace existing binary at $targetPath. It may be in use by another process. Close Slyce processes and retry."
+    }
+  }
   Move-Item -Path $tmpBin -Destination $targetPath -Force
 
   if (-not $IsWindows) {
