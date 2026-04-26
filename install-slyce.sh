@@ -80,6 +80,57 @@ $home_dir/.slyce/bin/slyce.new.exe
   done
   IFS=$old_ifs
 }
+
+ensure_install_dir_on_shell_path() {
+  if [ "$platform" = "win32" ]; then
+    return
+  fi
+
+  home_dir="${HOME:-}"
+  if [ -z "$home_dir" ]; then
+    return
+  fi
+
+  append_block() {
+    profile_path="$1"
+    if [ -f "$profile_path" ] && grep -F "install-slyce PATH for slyce CLI" "$profile_path" >/dev/null 2>&1; then
+      return
+    fi
+    cat >>"$profile_path" <<EOF
+# install-slyce PATH for slyce CLI
+case ":\$PATH:" in
+  *":$INSTALL_DIR:"*) ;;
+  *) export PATH="$INSTALL_DIR:\$PATH" ;;
+esac
+# install-slyce PATH end
+EOF
+    echo "install-slyce: updated PATH in $profile_path"
+  }
+
+  had_profile=0
+  profile_candidates="
+$home_dir/.zprofile
+$home_dir/.zshrc
+$home_dir/.bash_profile
+$home_dir/.bashrc
+$home_dir/.profile
+"
+  old_ifs=$IFS
+  IFS='
+'
+  for profile_path in $profile_candidates; do
+    [ -n "$profile_path" ] || continue
+    if [ -f "$profile_path" ]; then
+      had_profile=1
+      append_block "$profile_path"
+    fi
+  done
+  IFS=$old_ifs
+
+  if [ "$had_profile" -eq 0 ]; then
+    append_block "$home_dir/.profile"
+  fi
+}
 LATEST_URL="${BASE}/slyce/${platform}/${arch}/latest.json"
 echo "install-slyce: reading ${LATEST_URL}"
 
@@ -122,5 +173,9 @@ mkdir -p "$INSTALL_DIR"
 mv -f "$tmp_bin" "$INSTALL_DIR/slyce${ext}"
 chmod +x "$INSTALL_DIR/slyce${ext}"
 remove_legacy_user_scoped_slyce_binaries
+ensure_install_dir_on_shell_path
 
 echo "install-slyce: installed to ${INSTALL_DIR}/slyce${ext}"
+if [ "$platform" != "win32" ]; then
+  echo "install-slyce: open a new shell or run: export PATH=\"$INSTALL_DIR:\$PATH\""
+fi
