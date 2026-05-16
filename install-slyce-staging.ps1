@@ -1,14 +1,15 @@
 #!/usr/bin/env pwsh
-# Install the `slyce` CLI from the release CDN.
+# Install the `slyce` CLI from the **staging** release channel on the CDN
+# (same layout as WORKER_UPDATE_CHANNEL=staging: slyce/staging/<platform>/<arch>/...).
 #
-# Stable one-liner (tracks main; pin a commit SHA in production if you need immutability):
-# irm https://raw.githubusercontent.com/bean-la/slyce-install/main/install-slyce.ps1 | iex
-#
-# Staging channel (CDN path `slyce/staging/...`, same as WORKER_UPDATE_CHANNEL=staging):
+# Staging one-liner (tracks main of this repo; pin a commit SHA if you need immutability):
 # irm https://raw.githubusercontent.com/bean-la/slyce-install/main/install-slyce-staging.ps1 | iex
 #
-# Or with a custom base URL:
+# Or with a custom base URL (still uses the staging channel prefix):
 # $env:SLYCE_RELEASE_BASE_URL = "https://example.com"; irm ... | iex
+#
+# Production / flat channel installer (no `staging` path segment):
+# irm https://raw.githubusercontent.com/bean-la/slyce-install/main/install-slyce.ps1 | iex
 #
 # Installs to $env:INSTALL_DIR (default: runtime root bin directory).
 # Windows: C:\ProgramData\Slyce\bin
@@ -22,7 +23,7 @@ function Get-SlycePlatform {
   if ($IsWindows) { return "win32" }
   if ($IsMacOS) { return "darwin" }
   if ($IsLinux) { return "linux" }
-  throw "install-slyce: unsupported platform."
+  throw "install-slyce-staging: unsupported platform."
 }
 
 function Get-SlyceArch {
@@ -38,12 +39,12 @@ function Read-ExpectedChecksum {
   param([Parameter(Mandatory = $true)][string]$Path)
   $raw = Get-Content -Path $Path -Raw
   if ([string]::IsNullOrWhiteSpace($raw)) {
-    throw "install-slyce: empty checksum file."
+    throw "install-slyce-staging: empty checksum file."
   }
 
   $candidate = ($raw.Trim() -split "\s+")[0].ToLowerInvariant()
   if ($candidate -notmatch "^[a-f0-9]{64}$") {
-    throw "install-slyce: invalid checksum format."
+    throw "install-slyce-staging: invalid checksum format."
   }
   return $candidate
 }
@@ -77,10 +78,10 @@ function Remove-LegacyUserScopedSlyceBinaries {
     if (Test-Path -Path $candidate) {
       try {
         Remove-Item -Path $candidate -Force
-        Write-Host "install-slyce: removed legacy user binary $candidate"
+        Write-Host "install-slyce-staging: removed legacy user binary $candidate"
       }
       catch {
-        Write-Host "install-slyce: warning - could not remove legacy user binary $candidate"
+        Write-Host "install-slyce-staging: warning - could not remove legacy user binary $candidate"
       }
     }
   }
@@ -124,7 +125,7 @@ function Sync-WindowsPathToRuntimeCli {
   $newUserPath = ($filtered -join ";")
   [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
   $env:Path = $newUserPath
-  Write-Host "install-slyce: normalized user PATH for runtime CLI directory"
+  Write-Host "install-slyce-staging: normalized user PATH for runtime CLI directory"
 }
 
 $base = if ($env:SLYCE_RELEASE_BASE_URL) {
@@ -137,15 +138,17 @@ else {
   "https://slyce.moiste.la"
 }
 
+$slyceRoot = "slyce/staging"
+
 $installDir = Get-DefaultInstallDir
 
 $platform = Get-SlycePlatform
 $arch = Get-SlyceArch
-$latestUrl = "$base/slyce/$platform/$arch/latest.json"
+$latestUrl = "$base/$slyceRoot/$platform/$arch/latest.json"
 
-Write-Host "install-slyce: reading $latestUrl"
+Write-Host "install-slyce-staging: reading $latestUrl"
 
-$tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("slyce-install-" + [System.Guid]::NewGuid().ToString("N"))
+$tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("slyce-install-staging-" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmpDir | Out-Null
 
 try {
@@ -154,13 +157,13 @@ try {
 
   $latest = Get-Content -Path $latestPath -Raw | ConvertFrom-Json
   if (-not $latest.version -or $latest.version -isnot [string]) {
-    throw "install-slyce: latest.json is missing a valid version."
+    throw "install-slyce-staging: latest.json is missing a valid version."
   }
   $version = $latest.version
 
   $ext = if ($platform -eq "win32") { ".exe" } else { "" }
-  $binUrl = "$base/slyce/$platform/$arch/$version/slyce$ext"
-  Write-Host "install-slyce: downloading $binUrl"
+  $binUrl = "$base/$slyceRoot/$platform/$arch/$version/slyce$ext"
+  Write-Host "install-slyce-staging: downloading $binUrl"
 
   $tmpBin = Join-Path $tmpDir "slyce$ext"
   Invoke-WebRequest -Uri $binUrl -OutFile $tmpBin
@@ -175,15 +178,15 @@ try {
   }
 
   if ($hasChecksum -and (Test-Path -Path $tmpSum) -and ((Get-Item -Path $tmpSum).Length -gt 0)) {
-    Write-Host "install-slyce: verifying SHA-256"
+    Write-Host "install-slyce-staging: verifying SHA-256"
     $expected = Read-ExpectedChecksum -Path $tmpSum
     $actual = (Get-FileHash -Path $tmpBin -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($expected -ne $actual) {
-      throw "install-slyce: checksum mismatch (expected $expected, got $actual)"
+      throw "install-slyce-staging: checksum mismatch (expected $expected, got $actual)"
     }
   }
   else {
-    Write-Host "install-slyce: no .sha256 sidecar found; skipping checksum verify"
+    Write-Host "install-slyce-staging: no .sha256 sidecar found; skipping checksum verify"
   }
 
   New-Item -ItemType Directory -Path $installDir -Force | Out-Null
@@ -193,7 +196,7 @@ try {
       Remove-Item -Path $targetPath -Force
     }
     catch {
-      throw "install-slyce: could not replace existing binary at $targetPath. It may be in use by another process. Close Slyce processes and retry."
+      throw "install-slyce-staging: could not replace existing binary at $targetPath. It may be in use by another process. Close Slyce processes and retry."
     }
   }
   Move-Item -Path $tmpBin -Destination $targetPath -Force
@@ -205,7 +208,7 @@ try {
     Remove-LegacyUserScopedSlyceBinaries
     Sync-WindowsPathToRuntimeCli -InstallDir $installDir
   }
-  Write-Host "install-slyce: installed to $targetPath"
+  Write-Host "install-slyce-staging: installed staging-channel CLI to $targetPath"
 }
 finally {
   if (Test-Path -Path $tmpDir) {
