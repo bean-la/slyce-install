@@ -19,9 +19,42 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$script:IsWindowsPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
-$script:IsMacOSPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)
-$script:IsLinuxPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)
+function Test-OsPlatform {
+  param([Parameter(Mandatory = $true)][string]$Name)
+  try {
+    $runtimeType = [System.Type]::GetType("System.Runtime.InteropServices.RuntimeInformation")
+    $osPlatformType = [System.Type]::GetType("System.Runtime.InteropServices.OSPlatform")
+    if ($runtimeType -and $osPlatformType) {
+      $field = $osPlatformType.GetField($Name)
+      if ($field) {
+        $value = $field.GetValue($null)
+        if ($value) {
+          return [bool]$runtimeType.GetMethod("IsOSPlatform").Invoke($null, @($value))
+        }
+      }
+    }
+  }
+  catch {}
+  return $false
+}
+
+$script:IsWindowsPlatform = Test-OsPlatform -Name "Windows"
+$script:IsMacOSPlatform = Test-OsPlatform -Name "OSX"
+$script:IsLinuxPlatform = Test-OsPlatform -Name "Linux"
+
+if (-not $script:IsWindowsPlatform -and -not $script:IsMacOSPlatform -and -not $script:IsLinuxPlatform) {
+  # Fallbacks for older PowerShell/.NET environments.
+  $script:IsWindowsPlatform = $env:OS -eq "Windows_NT"
+  $platformId = [System.Environment]::OSVersion.Platform.ToString().ToLowerInvariant()
+  if (-not $script:IsWindowsPlatform -and $platformId -like "*unix*") {
+    if (Test-Path "/System/Library/CoreServices/SystemVersion.plist") {
+      $script:IsMacOSPlatform = $true
+    }
+    else {
+      $script:IsLinuxPlatform = $true
+    }
+  }
+}
 
 function Get-SlycePlatform {
   if ($script:IsWindowsPlatform) { return "win32" }
