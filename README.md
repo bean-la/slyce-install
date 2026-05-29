@@ -40,6 +40,26 @@ Optional channel override before running doctor:
 $env:SLYCE_DOCTOR_CHANNEL="staging"
 ```
 
+## One-command recovery / reset (Windows)
+
+Repair in place (recommended first):
+
+```powershell
+irm https://raw.githubusercontent.com/bean-la/slyce-install/main/recover-slyce.ps1 | iex
+```
+
+Hard reset from scratch (stops services, wipes runtime dirs, reinstalls):
+
+```powershell
+$env:SLYCE_RECOVER_WIPE="1"; irm https://raw.githubusercontent.com/bean-la/slyce-install/main/recover-slyce.ps1 | iex
+```
+
+Optional channel override (`prod` default):
+
+```powershell
+$env:SLYCE_RECOVER_CHANNEL="staging"
+```
+
 ## Notes
 
 - If service/ACL operations fail, rerun the command in an elevated PowerShell (Run as Administrator).
