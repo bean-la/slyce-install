@@ -52,7 +52,8 @@ else {
 $env:WORKER_UPDATE_CHANNEL = $doctorChannel
 
 Write-Host "doctor-slyce: running installer..."
-& powershell -NoProfile -ExecutionPolicy Bypass -Command "$IsWindows=`$true; irm $installScript | iex"
+$installerCmd = '`$IsWindows=$true; irm "' + $installScript + '" | iex'
+& powershell -NoProfile -ExecutionPolicy Bypass -Command $installerCmd
 
 if (Get-Command slyce -ErrorAction SilentlyContinue) {
   try {
