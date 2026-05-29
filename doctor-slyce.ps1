@@ -16,6 +16,46 @@ if (-not $script:IsWindowsPlatform) {
   throw "doctor-slyce: this helper currently targets Windows hosts."
 }
 
+function Ensure-PowerShellExeInPath {
+  $psDir = Join-Path $env:WINDIR "System32\WindowsPowerShell\v1.0"
+  $currentPath = [string]$env:Path
+  $hasPs = $false
+  if (-not [string]::IsNullOrWhiteSpace($currentPath)) {
+    $parts = $currentPath -split ";"
+    foreach ($p in $parts) {
+      if ($p.Trim().TrimEnd("\") -ieq $psDir.TrimEnd("\")) {
+        $hasPs = $true
+        break
+      }
+    }
+  }
+  if (-not $hasPs) {
+    $env:Path = "$psDir;$currentPath"
+    Write-Host "doctor-slyce: prepended $psDir to process PATH"
+  }
+  $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+  if (-not [string]::IsNullOrWhiteSpace($machinePath)) {
+    $machineHasPs = $false
+    foreach ($p in ($machinePath -split ";")) {
+      if ($p.Trim().TrimEnd("\") -ieq $psDir.TrimEnd("\")) {
+        $machineHasPs = $true
+        break
+      }
+    }
+    if (-not $machineHasPs) {
+      try {
+        [Environment]::SetEnvironmentVariable("Path", "$psDir;$machinePath", "Machine")
+        Write-Host "doctor-slyce: added $psDir to machine PATH"
+      }
+      catch {
+        Write-Host "doctor-slyce: warning - could not update machine PATH (non-admin?)"
+      }
+    }
+  }
+}
+
+Ensure-PowerShellExeInPath
+
 $doctorChannel = if ($env:SLYCE_DOCTOR_CHANNEL -and $env:SLYCE_DOCTOR_CHANNEL.Trim()) {
   $env:SLYCE_DOCTOR_CHANNEL.Trim().ToLowerInvariant()
 }
@@ -32,6 +72,13 @@ else {
 
 Write-Host "doctor-slyce: channel=$doctorChannel"
 Write-Host "doctor-slyce: install-script=$installScript"
+try {
+  $psCmd = Get-Command powershell.exe -ErrorAction Stop
+  Write-Host "doctor-slyce: powershell.exe=$($psCmd.Source)"
+}
+catch {
+  Write-Host "doctor-slyce: warning - powershell.exe not resolvable from PATH"
+}
 
 if (-not (Get-Command slyce -ErrorAction SilentlyContinue)) {
   Write-Host "doctor-slyce: slyce command not found yet (will install now)."
