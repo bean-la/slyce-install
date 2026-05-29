@@ -30,7 +30,29 @@ function Get-SlycePlatform {
 }
 
 function Get-SlyceArch {
-  $arch = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant()
+  $arch = ""
+  try {
+    $archValue = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
+    if ($archValue) {
+      $arch = $archValue.ToString().ToLowerInvariant()
+    }
+  }
+  catch {
+    $arch = ""
+  }
+  if ([string]::IsNullOrWhiteSpace($arch)) {
+    $fromEnv = [string]$env:PROCESSOR_ARCHITECTURE
+    if ([string]::IsNullOrWhiteSpace($fromEnv)) {
+      $fromEnv = [string]$env:PROCESSOR_ARCHITEW6432
+    }
+    $mapped = $fromEnv.Trim().ToLowerInvariant()
+    switch ($mapped) {
+      "amd64" { $arch = "x64" }
+      "x86_64" { $arch = "x64" }
+      "arm64" { $arch = "arm64" }
+      default { $arch = $mapped }
+    }
+  }
   switch ($arch) {
     "x64" { return "x64" }
     "arm64" { return "arm64" }
