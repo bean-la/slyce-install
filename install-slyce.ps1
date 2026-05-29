@@ -60,6 +60,23 @@ function Get-SlyceArch {
   }
 }
 
+function Normalize-ReleaseChannel {
+  param([string]$Raw)
+  if ([string]::IsNullOrWhiteSpace($Raw)) { return "" }
+  $t = $Raw.Trim().ToLowerInvariant()
+  if ($t -notmatch "^[a-z0-9]+(-[a-z0-9]+)*$") { return "" }
+  return $t
+}
+
+function Get-ReleaseChannel {
+  $fromEnv = Normalize-ReleaseChannel -Raw $env:WORKER_UPDATE_CHANNEL
+  if ($fromEnv) { return $fromEnv }
+  $fromLegacy = Normalize-ReleaseChannel -Raw $env:SLYCE_RELEASE_CHANNEL
+  if ($fromLegacy) { return $fromLegacy }
+  # Default to prod channel for new installs/recovery. Falls back to flat below.
+  return "prod"
+}
+
 function Read-ExpectedChecksum {
   param([Parameter(Mandatory = $true)][string]$Path)
   $raw = Get-Content -Path $Path -Raw
@@ -167,16 +184,36 @@ $installDir = Get-DefaultInstallDir
 
 $platform = Get-SlycePlatform
 $arch = Get-SlyceArch
-$latestUrl = "$base/slyce/$platform/$arch/latest.json"
-
-Write-Host "install-slyce: reading $latestUrl"
+$channel = Get-ReleaseChannel
+$rootCandidates = @()
+if ($channel) {
+  $rootCandidates += "slyce/$channel"
+}
+$rootCandidates += "slyce"
 
 $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) ("slyce-install-" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmpDir | Out-Null
 
 try {
   $latestPath = Join-Path $tmpDir "latest.json"
-  Invoke-WebRequest -Uri $latestUrl -OutFile $latestPath
+  $selectedRoot = ""
+  $lastLatestError = $null
+  foreach ($candidateRoot in $rootCandidates) {
+    $candidateLatestUrl = "$base/$candidateRoot/$platform/$arch/latest.json"
+    Write-Host "install-slyce: reading $candidateLatestUrl"
+    try {
+      Invoke-WebRequest -Uri $candidateLatestUrl -OutFile $latestPath
+      $selectedRoot = $candidateRoot
+      break
+    }
+    catch {
+      $lastLatestError = $_
+    }
+  }
+  if ([string]::IsNullOrWhiteSpace($selectedRoot)) {
+    if ($lastLatestError) { throw $lastLatestError }
+    throw "install-slyce: failed to resolve latest.json feed."
+  }
 
   $latest = Get-Content -Path $latestPath -Raw | ConvertFrom-Json
   if (-not $latest.version -or $latest.version -isnot [string]) {
@@ -185,7 +222,7 @@ try {
   $version = $latest.version
 
   $ext = if ($platform -eq "win32") { ".exe" } else { "" }
-  $binUrl = "$base/slyce/$platform/$arch/$version/slyce$ext"
+  $binUrl = "$base/$selectedRoot/$platform/$arch/$version/slyce$ext"
   Write-Host "install-slyce: downloading $binUrl"
 
   $tmpBin = Join-Path $tmpDir "slyce$ext"
