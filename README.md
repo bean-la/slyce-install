@@ -28,7 +28,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$IsWindows=$true; irm ht
 
 Runs install + `slyce upgrade` + `slyce service repair` + `slyce restart`.
 
-Default channel is `staging`.
+Default channel is `prod`.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$IsWindows=$true; irm https://raw.githubusercontent.com/bean-la/slyce-install/main/doctor-slyce.ps1 | iex"

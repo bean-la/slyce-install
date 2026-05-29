@@ -5,7 +5,7 @@
 # powershell -NoProfile -ExecutionPolicy Bypass -Command "$IsWindows=$true; irm https://raw.githubusercontent.com/bean-la/slyce-install/main/doctor-slyce.ps1 | iex"
 #
 # Optional channel override:
-# $env:SLYCE_DOCTOR_CHANNEL = "staging"
+# $env:SLYCE_DOCTOR_CHANNEL = "prod"
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -20,7 +20,7 @@ $doctorChannel = if ($env:SLYCE_DOCTOR_CHANNEL -and $env:SLYCE_DOCTOR_CHANNEL.Tr
   $env:SLYCE_DOCTOR_CHANNEL.Trim().ToLowerInvariant()
 }
 else {
-  "staging"
+  "prod"
 }
 
 $installScript = if ($doctorChannel -eq "staging") {
