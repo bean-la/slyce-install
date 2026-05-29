@@ -19,10 +19,14 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+$script:IsWindowsPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)
+$script:IsMacOSPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)
+$script:IsLinuxPlatform = [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Linux)
+
 function Get-SlycePlatform {
-  if ($IsWindows) { return "win32" }
-  if ($IsMacOS) { return "darwin" }
-  if ($IsLinux) { return "linux" }
+  if ($script:IsWindowsPlatform) { return "win32" }
+  if ($script:IsMacOSPlatform) { return "darwin" }
+  if ($script:IsLinuxPlatform) { return "linux" }
   throw "install-slyce-staging: unsupported platform."
 }
 
@@ -53,18 +57,18 @@ function Get-DefaultInstallDir {
   if ($env:INSTALL_DIR) {
     return $env:INSTALL_DIR
   }
-  if ($IsWindows) {
+  if ($script:IsWindowsPlatform) {
     $programData = if ($env:ProgramData) { $env:ProgramData } else { "C:\ProgramData" }
     return Join-Path $programData "Slyce\bin"
   }
-  if ($IsMacOS) {
+  if ($script:IsMacOSPlatform) {
     return Join-Path $HOME "Library/Application Support/Slyce/bin"
   }
   return "/var/lib/slyce/bin"
 }
 
 function Remove-LegacyUserScopedSlyceBinaries {
-  if (-not $IsWindows) {
+  if (-not $script:IsWindowsPlatform) {
     return
   }
   $homeDir = [string]$HOME
@@ -90,7 +94,7 @@ function Remove-LegacyUserScopedSlyceBinaries {
 function Sync-WindowsPathToRuntimeCli {
   param([Parameter(Mandatory = $true)][string]$InstallDir)
 
-  if (-not $IsWindows) {
+  if (-not $script:IsWindowsPlatform) {
     return
   }
 
@@ -201,7 +205,7 @@ try {
   }
   Move-Item -Path $tmpBin -Destination $targetPath -Force
 
-  if (-not $IsWindows) {
+  if (-not $script:IsWindowsPlatform) {
     & chmod +x $targetPath
   }
   else {
