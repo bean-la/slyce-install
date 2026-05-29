@@ -54,7 +54,26 @@ function Ensure-PowerShellExeInPath {
   }
 }
 
+function Remove-LegacySlyceWorkerService {
+  $legacyName = "SlyceWorker"
+  try {
+    $svc = Get-Service -Name $legacyName -ErrorAction SilentlyContinue
+    if (-not $svc) { return }
+    Write-Host "doctor-slyce: found legacy service $legacyName (status=$($svc.Status)); removing..."
+    try {
+      Stop-Service -Name $legacyName -Force -ErrorAction SilentlyContinue
+    }
+    catch {}
+    $deleteResult = & sc.exe delete $legacyName 2>&1
+    Write-Host "doctor-slyce: sc delete $legacyName -> $deleteResult"
+  }
+  catch {
+    Write-Host "doctor-slyce: warning - could not inspect/remove legacy $legacyName service: $($_.Exception.Message)"
+  }
+}
+
 Ensure-PowerShellExeInPath
+Remove-LegacySlyceWorkerService
 
 $doctorChannel = if ($env:SLYCE_DOCTOR_CHANNEL -and $env:SLYCE_DOCTOR_CHANNEL.Trim()) {
   $env:SLYCE_DOCTOR_CHANNEL.Trim().ToLowerInvariant()
