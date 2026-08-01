@@ -1,0 +1,10 @@
+{
+  "endpoint": "https://<account-id>.r2.cloudflarestorage.com",
+  "access": "<R2-ACCESS-KEY>",
+  "secret": "<R2-SECRET-KEY>",
+  "bucket": "<tenant-bucket>",
+  "prefix": "mbr2",
+  "storageHost": "https://<account-id>.r2.cloudflarestorage.com",
+  "videosDir": "C:\\Users\\sebbe\\Videos",
+  "targets": ["2026-07-29_21-42", "2026-07-25_20-40"]
+}
