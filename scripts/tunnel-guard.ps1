@@ -15,11 +15,13 @@ if ($cfs.Count -gt 1) {
           else { $cfs | Sort-Object CreationDate | Select-Object -Last 1 }
   foreach ($c in $cfs) { if ($c.ProcessId -ne $keep.ProcessId) { Kill-Proc $c.ProcessId 'stale cloudflared' } }
 }
-# --- slyce plane: kill any child not parented by the live SlycePlane wrapper ---
+# --- slyce plane: kill only REAL plane instances (cmdline contains "plane"),
+# --- never detached run-job executors (they are parented by the plane, not the
+# --- WinSW wrapper; killing them orphans in-flight uploads - sbm7/mbr2/dubstream 2026-08-02).
 $psvc = Get-CimInstance Win32_Service -Filter "Name='SlycePlane'"
 $livePid = 0
 if ($psvc -and $psvc.ProcessId) { $livePid = $psvc.ProcessId }
-$slyce = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'slyce.exe' })
+$slyce = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'slyce.exe' -and $_.CommandLine -match '\bplane\b' })
 foreach ($s in $slyce) {
   if ($livePid -gt 0) {
     if ($s.ParentProcessId -ne $livePid) { Kill-Proc $s.ProcessId 'orphan slyce plane' }
